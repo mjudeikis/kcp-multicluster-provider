@@ -112,12 +112,11 @@ func main() {
 				// Retrieve the Workspace from the cluster.
 				w := &tenancyv1alpha1.Workspace{}
 				if err := client.Get(ctx, req.NamespacedName, w); err != nil {
-					log.Error(err, "did not find workspace")
-					if !apierrors.IsNotFound(err) {
-						return reconcile.Result{}, fmt.Errorf("failed to get secret: %w", err)
+					if apierrors.IsNotFound(err) {
+						// Workspace was deleted.
+						return reconcile.Result{}, nil
 					}
-					// Secret was deleted.
-					return reconcile.Result{}, nil
+					return reconcile.Result{}, fmt.Errorf("failed to get workspace: %w", err)
 				}
 
 				log.Info("Reconciling workspaces", "name", w.Name, "uuid", w.UID)
