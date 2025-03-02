@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	kcpinformers "github.com/kcp-dev/apimachinery/v2/third_party/informers"
 	"github.com/kcp-dev/logicalcluster/v3"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -85,7 +86,7 @@ func NewWildcardCache(config *rest.Config, opts cache.Options) (WildcardCache, e
 			panic(err)
 		}
 
-		inf := k8scache.NewSharedIndexInformer(watcher, obj, duration, indexers)
+		inf := kcpinformers.NewSharedIndexInformer(watcher, obj, duration, indexers)
 		if err := inf.AddIndexers(k8scache.Indexers{
 			ClusterIndexName:             ClusterIndexFunc,
 			ClusterAndNamespaceIndexName: ClusterAndNamespaceIndexFunc,
