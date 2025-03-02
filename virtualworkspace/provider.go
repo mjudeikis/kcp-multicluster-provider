@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	corev1alpha1 "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	"github.com/kcp-dev/logicalcluster/v3"
 	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
 	"github.com/multicluster-runtime/multicluster-runtime/pkg/multicluster"
@@ -34,6 +33,7 @@ import (
 	toolscache "k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -46,6 +46,7 @@ type Provider struct {
 	config *rest.Config
 	scheme *runtime.Scheme
 	cache  WildcardCache
+	object client.Object
 
 	log logr.Logger
 
@@ -62,13 +63,15 @@ type Options struct {
 // New creates a new kcp virtual workspace provider. The provided rest.Config
 // must point to a virtual workspace apiserver base path, i.e. up to but without
 // the "/clusters/*" suffix.
-func New(cfg *rest.Config, options Options) (*Provider, error) {
+func New(cfg *rest.Config, obj client.Object, options Options) (*Provider, error) {
 	if options.Scheme == nil {
 		options.Scheme = scheme.Scheme
 	}
 	if options.Cache == nil {
 		var err error
-		options.Cache, err = NewWildcardCache(cfg, cache.Options{})
+		options.Cache, err = NewWildcardCache(cfg, cache.Options{
+			Scheme: options.Scheme,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wildcard cache: %w", err)
 		}
@@ -78,6 +81,7 @@ func New(cfg *rest.Config, options Options) (*Provider, error) {
 		config: cfg,
 		scheme: options.Scheme,
 		cache:  options.Cache,
+		object: obj,
 
 		log: log.Log.WithName("kcp-virtualworkspace-cluster-provider"),
 
@@ -91,19 +95,22 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Watch logical clusters and engage them as clusters in multicluster-runtime.
-	lc := &corev1alpha1.LogicalCluster{}
-	lcInf, err := p.cache.GetInformer(ctx, lc, cache.BlockUntilSynced(false))
+	inf, err := p.cache.GetInformer(ctx, p.object, cache.BlockUntilSynced(false))
 	if err != nil {
 		return fmt.Errorf("failed to get logical cluster informer: %w", err)
 	}
-	lcInf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
+	shInf, _, _, _, err := p.cache.getSharedInformer(p.object)
+	if err != nil {
+		return fmt.Errorf("failed to get shared informer: %w", err)
+	}
+	inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			lc, ok := obj.(*corev1alpha1.LogicalCluster)
+			cobj, ok := obj.(client.Object)
 			if !ok {
 				klog.Errorf("unexpected object type %T", obj)
 				return
 			}
-			clusterName := logicalcluster.From(lc)
+			clusterName := logicalcluster.From(cobj)
 
 			// fast path.
 			p.lock.RLock()
@@ -146,31 +153,39 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			lc, ok := obj.(*corev1alpha1.LogicalCluster)
+			cobj, ok := obj.(client.Object)
 			if !ok {
 				tombstone, ok := obj.(toolscache.DeletedFinalStateUnknown)
 				if !ok {
 					klog.Errorf("Couldn't get object from tombstone %#v", obj)
 					return
 				}
-				lc, ok = tombstone.Obj.(*corev1alpha1.LogicalCluster)
+				cobj, ok = tombstone.Obj.(client.Object)
 				if !ok {
 					klog.Errorf("Tombstone contained object that is not expected %#v", obj)
 					return
 				}
 			}
 
-			clusterName := logicalcluster.From(lc)
+			clusterName := logicalcluster.From(cobj)
 
-			p.lock.Lock()
-			cancel, ok := p.cancelFns[clusterName]
-			if ok {
-				p.log.Info("disengaging cluster", "cluster", clusterName)
-				cancel()
-				delete(p.cancelFns, clusterName)
-				delete(p.clusters, clusterName)
+			// check if there is no object left in the index.
+			keys, err := shInf.GetIndexer().IndexKeys(ClusterIndexName, clusterName.String())
+			if err != nil {
+				p.log.Error(err, "failed to get index keys", "cluster", clusterName)
+				return
 			}
-			p.lock.Unlock()
+			if len(keys) == 0 {
+				p.lock.Lock()
+				cancel, ok := p.cancelFns[clusterName]
+				if ok {
+					p.log.Info("disengaging cluster", "cluster", clusterName)
+					cancel()
+					delete(p.cancelFns, clusterName)
+					delete(p.clusters, clusterName)
+				}
+				p.lock.Unlock()
+			}
 		},
 	})
 
