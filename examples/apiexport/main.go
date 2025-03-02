@@ -68,7 +68,7 @@ func main() {
 	opts := manager.Options{}
 
 	var err error
-	provider, err = virtualworkspace.New(cfg)
+	provider, err = virtualworkspace.New(cfg, virtualworkspace.Options{})
 	if err != nil {
 		entryLog.Error(err, "unable to construct cluster provider")
 		os.Exit(1)

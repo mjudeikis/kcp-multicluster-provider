@@ -6,54 +6,79 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kcp-dev/logicalcluster/v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	toolscache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	// ClusterNameIndex indexes object by cluster and name.
-	ClusterNameIndex = "cluster/name"
-	// ClusterIndex indexes object by cluster.
-	ClusterIndex = "cluster"
+var _ cache.Cache = &scopedCache{}
 
-	clusterAnnotation = "kcp.io/cluster"
-)
+// scopedCache is a Cache that operates on a specific cluster.
+type scopedCache struct {
+	base        WildcardCache
+	clusterName logicalcluster.Name
+	infGetter   sharedInformerGetter
+}
 
-var _ cache.Cache = &workspacedCache{}
+func (c *scopedCache) Start(ctx context.Context) error {
+	return errors.New("scoped cache cannot be started")
+}
 
-// workspacedCache is a cache that operates on a specific namespace.
-type workspacedCache struct {
-	clusterName string
-	cache.Cache
+func (c *scopedCache) WaitForCacheSync(ctx context.Context) bool {
+	return c.base.WaitForCacheSync(ctx)
+}
+
+func (c *scopedCache) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
+	return c.base.IndexField(ctx, obj, field, extractValue)
 }
 
 // Get returns a single object from the cache.
-func (c *workspacedCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-	if err := c.Cache.Get(ctx, key, obj, opts...); err != nil {
-		return err
+func (c *scopedCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	inf, gvk, scope, found, err := c.infGetter(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get informer for %T %s: %w", obj, obj.GetObjectKind().GroupVersionKind(), err)
 	}
-	return nil
+	if !found {
+		return fmt.Errorf("no informer found for %T %s", obj, obj.GetObjectKind().GroupVersionKind())
+	}
+
+	cr := CacheReader{
+		indexer:          inf.GetIndexer(),
+		groupVersionKind: gvk,
+		scopeName:        scope,
+		disableDeepCopy:  false,
+		clusterName:      c.clusterName,
+	}
+
+	return cr.Get(ctx, key, obj, opts...)
 }
 
 // List returns a list of objects from the cache.
-func (c *workspacedCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	var listOpts client.ListOptions
-	for _, o := range opts {
-		o.ApplyToList(&listOpts)
+func (c *scopedCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	inf, gvk, scope, found, err := c.infGetter(list)
+	if err != nil {
+		return fmt.Errorf("failed to get informer for %T %s: %w", list, list.GetObjectKind().GroupVersionKind(), err)
+	}
+	if !found {
+		return fmt.Errorf("no informer found for %T %s", list, list.GetObjectKind().GroupVersionKind())
 	}
 
-	if err := c.Cache.List(ctx, list, opts...); err != nil {
-		return err
+	cr := CacheReader{
+		indexer:          inf.GetIndexer(),
+		groupVersionKind: gvk,
+		scopeName:        scope,
+		disableDeepCopy:  false,
+		clusterName:      c.clusterName,
 	}
 
-	return nil
+	return cr.List(ctx, list, opts...)
 }
 
 // GetInformer returns an informer for the given object kind.
-func (c *workspacedCache) GetInformer(ctx context.Context, obj client.Object, opts ...cache.InformerGetOption) (cache.Informer, error) {
-	inf, err := c.Cache.GetInformer(ctx, obj, opts...)
+func (c *scopedCache) GetInformer(ctx context.Context, obj client.Object, opts ...cache.InformerGetOption) (cache.Informer, error) {
+	inf, err := c.base.GetInformer(ctx, obj, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +86,8 @@ func (c *workspacedCache) GetInformer(ctx context.Context, obj client.Object, op
 }
 
 // GetInformerForKind returns an informer for the given GroupVersionKind.
-func (c *workspacedCache) GetInformerForKind(ctx context.Context, gvk schema.GroupVersionKind, opts ...cache.InformerGetOption) (cache.Informer, error) {
-	inf, err := c.Cache.GetInformerForKind(ctx, gvk, opts...)
+func (c *scopedCache) GetInformerForKind(ctx context.Context, gvk schema.GroupVersionKind, opts ...cache.InformerGetOption) (cache.Informer, error) {
+	inf, err := c.base.GetInformerForKind(ctx, gvk, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +95,13 @@ func (c *workspacedCache) GetInformerForKind(ctx context.Context, gvk schema.Gro
 }
 
 // RemoveInformer removes an informer from the cache.
-func (c *workspacedCache) RemoveInformer(ctx context.Context, obj client.Object) error {
+func (c *scopedCache) RemoveInformer(ctx context.Context, obj client.Object) error {
 	return errors.New("informer cannot be removed from scoped cache")
 }
 
 // scopedInformer is an informer that operates on a specific namespace.
 type scopedInformer struct {
-	clusterName string
+	clusterName logicalcluster.Name
 	cache.Informer
 }
 
@@ -85,7 +110,7 @@ func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler
 	return i.Informer.AddEventHandler(toolscache.ResourceEventHandlerDetailedFuncs{
 		AddFunc: func(obj interface{}, isInInitialList bool) {
 			cobj := obj.(client.Object)
-			if cobj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(cobj) == i.clusterName {
 				cobj := cobj.DeepCopyObject().(client.Object)
 				handler.OnAdd(cobj, isInInitialList)
 			}
@@ -93,7 +118,7 @@ func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			cobj := newObj.(client.Object)
 			cold := oldObj.(client.Object)
-			if cobj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(cobj) == i.clusterName {
 				cobj := cobj.DeepCopyObject().(client.Object)
 				cold := cold.DeepCopyObject().(client.Object)
 				handler.OnUpdate(cold, cobj)
@@ -104,7 +129,7 @@ func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler
 				obj = tombStone.Obj
 			}
 			cobj := obj.(client.Object)
-			if cobj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(cobj) == i.clusterName {
 				cobj := cobj.DeepCopyObject().(client.Object)
 				handler.OnDelete(cobj)
 			}
@@ -117,14 +142,14 @@ func (i *scopedInformer) AddEventHandlerWithResyncPeriod(handler toolscache.Reso
 	return i.Informer.AddEventHandlerWithResyncPeriod(toolscache.ResourceEventHandlerDetailedFuncs{
 		AddFunc: func(obj interface{}, isInInitialList bool) {
 			cobj := obj.(client.Object)
-			if cobj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(cobj) == i.clusterName {
 				cobj := cobj.DeepCopyObject().(client.Object)
 				handler.OnAdd(cobj, isInInitialList)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			obj := newObj.(client.Object)
-			if obj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(obj) == i.clusterName {
 				obj := obj.DeepCopyObject().(client.Object)
 				old := oldObj.(client.Object).DeepCopyObject().(client.Object)
 				handler.OnUpdate(old, obj)
@@ -135,7 +160,7 @@ func (i *scopedInformer) AddEventHandlerWithResyncPeriod(handler toolscache.Reso
 				obj = tombStone.Obj
 			}
 			cobj := obj.(client.Object)
-			if cobj.GetAnnotations()[clusterAnnotation] == i.clusterName {
+			if logicalcluster.From(cobj) == i.clusterName {
 				cobj := cobj.DeepCopyObject().(client.Object)
 				handler.OnDelete(cobj)
 			}
@@ -146,27 +171,4 @@ func (i *scopedInformer) AddEventHandlerWithResyncPeriod(handler toolscache.Reso
 // AddIndexers adds indexers to the informer.
 func (i *scopedInformer) AddIndexers(indexers toolscache.Indexers) error {
 	return errors.New("indexes cannot be added to scoped informers")
-}
-
-// workspaceScopeableCache is a cache that indexes objects by namespace.
-type workspaceScopeableCache struct { //nolint:revive // Stuttering here is fine.
-	cache.Cache
-}
-
-// IndexField adds an index for the given object kind.
-func (f *workspaceScopeableCache) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
-	return f.Cache.IndexField(ctx, obj, "cluster/"+field, func(obj client.Object) []string {
-		keys := extractValue(obj)
-		withCluster := make([]string, len(keys)*2)
-		for i, key := range keys {
-			withCluster[i] = fmt.Sprintf("%s/%s", obj.GetAnnotations()[clusterAnnotation], key)
-			withCluster[i+len(keys)] = fmt.Sprintf("*/%s", key)
-		}
-		return withCluster
-	})
-}
-
-// Start starts the cache.
-func (f *workspaceScopeableCache) Start(ctx context.Context) error {
-	return nil
 }

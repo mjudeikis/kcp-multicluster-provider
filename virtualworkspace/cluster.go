@@ -2,142 +2,112 @@ package virtualworkspace
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"net/http"
 	"strings"
-	"time"
 
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"github.com/kcp-dev/logicalcluster/v3"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	toolscache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
-func WithClusterNameIndex(opts *cache.Options) cache.Options {
-	old := opts.NewInformer
-	opts.NewInformer = func(watcher toolscache.ListerWatcher, object apiruntime.Object, duration time.Duration, indexers toolscache.Indexers) toolscache.SharedIndexInformer {
-		var inf toolscache.SharedIndexInformer
-		if old != nil {
-			inf = old(watcher, object, duration, indexers)
-		} else {
-			inf = toolscache.NewSharedIndexInformer(watcher, object, duration, indexers)
-		}
-		if err := inf.AddIndexers(toolscache.Indexers{
-			ClusterNameIndex: func(obj any) ([]string, error) {
-				o := obj.(client.Object)
-				return []string{
-					fmt.Sprintf("%s/%s", o.GetAnnotations()[clusterAnnotation], o.GetName()),
-				}, nil
-			},
-			ClusterIndex: func(obj any) ([]string, error) {
-				o := obj.(client.Object)
-				return []string{o.GetAnnotations()[clusterAnnotation]}, nil
-			},
-		}); err != nil {
-			utilruntime.HandleError(fmt.Errorf("unable to add cluster name indexers: %w", err))
-		}
-		return inf
-	}
-
-	return *opts
-}
-
-/*
-// WithClusterNameIndex adds indexers for cluster name and namespace.
-func WithClusterNameIndex() cluster.Option {
-	return func(options *cluster.Options) {
-		old := options.Cache.NewInformer
-		options.Cache.NewInformer = func(watcher toolscache.ListerWatcher, object apiruntime.Object, duration time.Duration, indexers toolscache.Indexers) toolscache.SharedIndexInformer {
-			var inf toolscache.SharedIndexInformer
-			if old != nil {
-				inf = old(watcher, object, duration, indexers)
-			} else {
-				inf = toolscache.NewSharedIndexInformer(watcher, object, duration, indexers)
-			}
-			if err := inf.AddIndexers(toolscache.Indexers{
-				ClusterNameIndex: func(obj any) ([]string, error) {
-					o := obj.(client.Object)
-					return []string{
-						fmt.Sprintf("%s/%s", o.GetAnnotations()[clusterAnnotation], o.GetName()),
-						fmt.Sprintf("%s/%s", "*", o.GetName()),
-					}, nil
-				},
-				ClusterIndex: func(obj any) ([]string, error) {
-					o := obj.(client.Object)
-					return []string{o.GetAnnotations()[clusterAnnotation]}, nil
-				},
-			}); err != nil {
-				utilruntime.HandleError(fmt.Errorf("unable to add cluster name indexers: %w", err))
-			}
-			return inf
-		}
-	}
-}
-*/
-
-func newWorkspacedCluster(cfg *rest.Config, clusterName string, baseCluster cluster.Cluster) (*workspacedCluster, error) {
+func newScopedCluster(cfg *rest.Config, clusterName logicalcluster.Name, wildcardCA WildcardCache, scheme *runtime.Scheme) (*scopedCluster, error) {
 	cfg = rest.CopyConfig(cfg)
-	cfg.Host = strings.TrimSuffix(cfg.Host, "/") + "/clusters/" + clusterName
+	cfg.Host = strings.TrimSuffix(cfg.Host, "/") + clusterName.Path().RequestPath()
 
-	c := &workspacedCache{
+	ca := &scopedCache{
+		base:        wildcardCA,
 		clusterName: clusterName,
-		Cache:       baseCluster.GetCache(),
+		infGetter:   wildcardCA.getSharedInformer,
 	}
 
-	client, err := client.New(cfg, client.Options{
-		Cache: &client.CacheOptions{
-			Reader: c,
-		},
-	})
+	cli, err := client.New(cfg, client.Options{Cache: &client.CacheOptions{Reader: ca}})
 	if err != nil {
 		return nil, err
 	}
 
-	return &workspacedCluster{
-		Cluster:     baseCluster,
+	httpClient, err := rest.HTTPClientFor(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	mapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return &scopedCluster{
 		clusterName: clusterName,
-		Client:      client,
-		cache:       c,
+		config:      cfg,
+		scheme:      scheme,
+		client:      cli,
+		httpClient:  httpClient,
+		mapper:      mapper,
+		cache:       ca,
 	}, nil
 }
 
-// workspacedCluster is a cluster that operates on a specific namespace.
-type workspacedCluster struct {
-	clusterName string
-	cluster.Cluster
-	cache cache.Cache
-	client.Client
+var _ cluster.Cluster = &scopedCluster{}
+
+// scopedCluster is a cluster that operates on a specific namespace.
+type scopedCluster struct {
+	clusterName logicalcluster.Name
+
+	scheme     *runtime.Scheme
+	config     *rest.Config
+	httpClient *http.Client
+	client     client.Client
+	mapper     meta.RESTMapper
+	cache      cache.Cache
 }
 
-// Name returns the name of the cluster.
-func (c *workspacedCluster) Name() string {
-	return c.clusterName
+func (c *scopedCluster) GetHTTPClient() *http.Client {
+	return c.httpClient
+}
+
+func (c *scopedCluster) GetConfig() *rest.Config {
+	return c.config
+}
+
+func (c *scopedCluster) GetScheme() *runtime.Scheme {
+	return c.scheme
+}
+
+func (c *scopedCluster) GetFieldIndexer() client.FieldIndexer {
+	return c.cache
+}
+
+func (c *scopedCluster) GetRESTMapper() meta.RESTMapper {
+	return c.mapper
 }
 
 // GetCache returns a cache.Cache.
-func (c *workspacedCluster) GetCache() cache.Cache {
+func (c *scopedCluster) GetCache() cache.Cache {
 	return c.cache
 }
 
 // GetClient returns a client scoped to the namespace.
-func (c *workspacedCluster) GetClient() client.Client {
-	return c.Client
+func (c *scopedCluster) GetClient() client.Client {
+	return c.client
 }
 
 // GetEventRecorderFor returns a new EventRecorder for the provided name.
-func (c *workspacedCluster) GetEventRecorderFor(name string) record.EventRecorder {
+func (c *scopedCluster) GetEventRecorderFor(name string) record.EventRecorder {
 	panic("implement me")
 }
 
 // GetAPIReader returns a reader against the cluster.
-func (c *workspacedCluster) GetAPIReader() client.Reader {
+func (c *scopedCluster) GetAPIReader() client.Reader {
 	return c.GetAPIReader()
 }
 
 // Start starts the cluster.
-func (c *workspacedCluster) Start(ctx context.Context) error {
-	return nil // no-op as this is shared
+func (c *scopedCluster) Start(ctx context.Context) error {
+	return errors.New("scoped cluster cannot be started")
 }
