@@ -19,14 +19,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
-	"strconv"
 
+	apisv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
+	corev1alpha1 "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
+	tenancyv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -41,6 +44,12 @@ import (
 
 	"github.com/kcp-dev/multicluster-runtime-provider/virtualworkspace"
 )
+
+func init() {
+	runtime.Must(corev1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(tenancyv1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(apisv1alpha1.AddToScheme(scheme.Scheme))
+}
 
 func main() {
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -68,10 +77,17 @@ func main() {
 	opts := manager.Options{}
 
 	var err error
-	provider, err = virtualworkspace.New(cfg)
+	provider, err = virtualworkspace.New(cfg, &apisv1alpha1.APIBinding{}, virtualworkspace.Options{})
 	if err != nil {
 		entryLog.Error(err, "unable to construct cluster provider")
 		os.Exit(1)
+	}
+
+	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			fmt.Println(r.URL)
+			return rt.RoundTrip(r)
+		})
 	}
 
 	mgr, err := mcmanager.New(cfg, provider, opts)
@@ -82,7 +98,7 @@ func main() {
 
 	if err := mcbuilder.ControllerManagedBy(mgr).
 		Named("kcp-secret-controller").
-		Watches(&corev1.Secret{}, virtualworkspace.EventHandlerFunc).
+		Watches(&tenancyv1alpha1.Workspace{}, virtualworkspace.EventHandlerFunc).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
 				log := log.FromContext(ctx).WithValues("cluster", req.ClusterName)
@@ -93,51 +109,17 @@ func main() {
 				}
 				client := cl.GetClient()
 
-				// Retrieve the Secret from the cluster.
-				secret := &corev1.Secret{}
-				if err := client.Get(ctx, req.NamespacedName, secret); err != nil {
-					log.Error(err, "did not find secret")
-					if !apierrors.IsNotFound(err) {
-						return reconcile.Result{}, fmt.Errorf("failed to get secret: %w", err)
+				// Retrieve the Workspace from the cluster.
+				w := &tenancyv1alpha1.Workspace{}
+				if err := client.Get(ctx, req.NamespacedName, w); err != nil {
+					if apierrors.IsNotFound(err) {
+						// Workspace was deleted.
+						return reconcile.Result{}, nil
 					}
-					// Secret was deleted.
-					return reconcile.Result{}, nil
+					return reconcile.Result{}, fmt.Errorf("failed to get workspace: %w", err)
 				}
 
-				// If the Secret is being deleted, we can skip it.
-				if secret.DeletionTimestamp != nil {
-					return reconcile.Result{}, nil
-				}
-
-				log.Info("Reconciling Secret", "ns", secret.GetNamespace(), "name", secret.Name, "uuid", secret.UID)
-
-				secrets := &corev1.SecretList{}
-				if err := client.List(ctx, secrets); err != nil {
-					log.Error(err, "failed to list secrets in same cluster")
-					return reconcile.Result{}, err
-				}
-
-				cm := &corev1.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      req.Name,
-						Namespace: req.Namespace,
-					},
-				}
-
-				res, err := ctrl.CreateOrUpdate(ctx, client, cm, func() error {
-					if cm.Data == nil {
-						cm.Data = make(map[string]string)
-					}
-
-					cm.Data["secrets"] = strconv.Itoa(len(secrets.Items))
-
-					return nil
-				})
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-
-				log.Info("Reconciled child ConfigMap", "result", res)
+				log.Info("Reconciling workspaces", "name", w.Name, "uuid", w.UID)
 
 				return reconcile.Result{}, nil
 			},
@@ -161,4 +143,10 @@ func main() {
 		entryLog.Error(err, "unable to run manager")
 		os.Exit(1)
 	}
+}
+
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
