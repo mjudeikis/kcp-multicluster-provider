@@ -29,16 +29,17 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/tools/cache"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// CacheReader is a client.Reader.
-var _ client.Reader = &CacheReader{}
+// cacheReader is a client.Reader.
+var _ client.Reader = &cacheReader{}
 
-// CacheReader wraps a cache.Index to implement the client.Reader interface for a single type.
-type CacheReader struct {
+// cacheReader wraps a cache.Index to implement the client.Reader interface for a single type.
+type cacheReader struct {
 	// indexer is the underlying indexer wrapped by this cache.
 	indexer cache.Indexer
 
@@ -57,7 +58,7 @@ type CacheReader struct {
 }
 
 // Get checks the indexer for the object and writes a copy of it if found.
-func (c *CacheReader) Get(ctx context.Context, key client.ObjectKey, out client.Object, _ ...client.GetOption) error {
+func (c *cacheReader) Get(ctx context.Context, key client.ObjectKey, out client.Object, _ ...client.GetOption) error {
 	if c.scopeName == apimeta.RESTScopeNameRoot {
 		key.Namespace = ""
 	}
@@ -117,7 +118,7 @@ func (c *CacheReader) Get(ctx context.Context, key client.ObjectKey, out client.
 }
 
 // List lists items out of the indexer and writes them to out.
-func (c *CacheReader) List(ctx context.Context, out client.ObjectList, opts ...client.ListOption) error {
+func (c *cacheReader) List(ctx context.Context, out client.ObjectList, opts ...client.ListOption) error {
 	var objs []interface{}
 	var err error
 
@@ -132,7 +133,7 @@ func (c *CacheReader) List(ctx context.Context, out client.ObjectList, opts ...c
 
 	switch {
 	case listOpts.FieldSelector != nil:
-		requiresExact := RequiresExactMatch(listOpts.FieldSelector)
+		requiresExact := requiresExactMatch(listOpts.FieldSelector)
 		if !requiresExact {
 			return fmt.Errorf("non-exact field matches are not supported by the cache")
 		}
@@ -208,12 +209,12 @@ func byIndexes(indexer cache.Indexer, requires fields.Requirements, clusterName 
 	indexers := indexer.GetIndexers()
 	_, isClusterAware := indexers[kcpcache.ClusterAndNamespaceIndexName]
 	for idx, req := range requires {
-		indexName := FieldIndexName(req.Field)
+		indexName := fieldIndexName(req.Field)
 		var indexedValue string
 		if isClusterAware {
-			indexedValue = KeyToClusteredKey(clusterName.String(), namespace, req.Value)
+			indexedValue = keyToClusteredKey(clusterName.String(), namespace, req.Value)
 		} else {
-			indexedValue = KeyToNamespacedKey(namespace, req.Value)
+			indexedValue = keyToNamespacedKey(namespace, req.Value)
 		}
 		if idx == 0 {
 			// we use first require to get snapshot data
@@ -264,26 +265,41 @@ func objectKeyToStoreKey(k client.ObjectKey) string {
 	return k.Namespace + "/" + k.Name
 }
 
-// FieldIndexName constructs the name of the index over the given field,
+// fieldIndexName constructs the name of the index over the given field,
 // for use with an indexer.
-func FieldIndexName(field string) string {
+func fieldIndexName(field string) string {
 	return "field:" + field
 }
 
 // allNamespacesNamespace is used as the "namespace" when we want to list across all namespaces.
 const allNamespacesNamespace = "__all_namespaces"
 
-// KeyToNamespacedKey prefixes the given index key with a namespace
+// keyToNamespacedKey prefixes the given index key with a namespace
 // for use in field selector indexes.
-func KeyToNamespacedKey(ns string, baseKey string) string {
+func keyToNamespacedKey(ns string, baseKey string) string {
 	if ns != "" {
 		return ns + "/" + baseKey
 	}
 	return allNamespacesNamespace + "/" + baseKey
 }
 
-// KeyToClusteredKey prefixes the given index key with a cluster name
+// keyToClusteredKey prefixes the given index key with a cluster name
 // for use in field selector indexes.
-func KeyToClusteredKey(clusterName string, ns string, baseKey string) string {
-	return clusterName + "|" + KeyToNamespacedKey(ns, baseKey)
+func keyToClusteredKey(clusterName string, ns string, baseKey string) string {
+	return clusterName + "|" + keyToNamespacedKey(ns, baseKey)
+}
+
+// requiresExactMatch checks if the given field selector is of the form `k=v` or `k==v`.
+func requiresExactMatch(sel fields.Selector) bool {
+	reqs := sel.Requirements()
+	if len(reqs) == 0 {
+		return false
+	}
+
+	for _, req := range reqs {
+		if req.Operator != selection.Equals && req.Operator != selection.DoubleEquals {
+			return false
+		}
+	}
+	return true
 }

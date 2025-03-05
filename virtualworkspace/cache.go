@@ -60,7 +60,7 @@ func (c *scopedCache) Get(ctx context.Context, key client.ObjectKey, obj client.
 		return fmt.Errorf("no informer found for %T %s", obj, obj.GetObjectKind().GroupVersionKind())
 	}
 
-	cr := CacheReader{
+	cr := cacheReader{
 		indexer:          inf.GetIndexer(),
 		groupVersionKind: gvk,
 		scopeName:        scope,
@@ -81,7 +81,7 @@ func (c *scopedCache) List(ctx context.Context, list client.ObjectList, opts ...
 		return fmt.Errorf("no informer found for %T %s", list, list.GetObjectKind().GroupVersionKind())
 	}
 
-	cr := CacheReader{
+	cr := cacheReader{
 		indexer:          inf.GetIndexer(),
 		groupVersionKind: gvk,
 		scopeName:        scope,
