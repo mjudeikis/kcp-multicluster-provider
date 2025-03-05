@@ -55,6 +55,7 @@ type Provider struct {
 	cancelFns map[logicalcluster.Name]context.CancelFunc
 }
 
+// Options are the options for creating a new kcp virtual workspace provider.
 type Options struct {
 	Scheme *runtime.Scheme
 	Cache  WildcardCache
@@ -64,6 +65,7 @@ type Options struct {
 // must point to a virtual workspace apiserver base path, i.e. up to but without
 // the "/clusters/*" suffix.
 func New(cfg *rest.Config, obj client.Object, options Options) (*Provider, error) {
+	// Do the defaulting controller-runtime would do for those fields we need.
 	if options.Scheme == nil {
 		options.Scheme = scheme.Scheme
 	}
@@ -202,11 +204,9 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 
 // Get returns a cluster by name.
 func (p *Provider) Get(_ context.Context, name string) (cluster.Cluster, error) {
-	clusterName := logicalcluster.Name(name)
-
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	if cl, ok := p.clusters[clusterName]; ok {
+	if cl, ok := p.clusters[logicalcluster.Name(name)]; ok {
 		return cl, nil
 	}
 
