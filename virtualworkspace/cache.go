@@ -125,29 +125,24 @@ type scopedInformer struct {
 func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler) (toolscache.ResourceEventHandlerRegistration, error) {
 	return i.Informer.AddEventHandler(toolscache.ResourceEventHandlerDetailedFuncs{
 		AddFunc: func(obj interface{}, isInInitialList bool) {
-			cobj := obj.(client.Object)
-			if logicalcluster.From(cobj) == i.clusterName {
-				cobj := cobj.DeepCopyObject().(client.Object)
-				handler.OnAdd(cobj, isInInitialList)
+			if cobj := obj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
+				handler.OnAdd(obj, isInInitialList)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			cobj := newObj.(client.Object)
-			cold := oldObj.(client.Object)
-			if logicalcluster.From(cobj) == i.clusterName {
-				cobj := cobj.DeepCopyObject().(client.Object)
-				cold := cold.DeepCopyObject().(client.Object)
-				handler.OnUpdate(cold, cobj)
+			if cobj := newObj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
+				handler.OnUpdate(oldObj, newObj)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
+			var cobj client.Object
 			if tombStone, ok := obj.(toolscache.DeletedFinalStateUnknown); ok {
-				obj = tombStone.Obj
+				cobj = tombStone.Obj.(client.Object)
+			} else {
+				cobj = obj.(client.Object)
 			}
-			cobj := obj.(client.Object)
 			if logicalcluster.From(cobj) == i.clusterName {
-				cobj := cobj.DeepCopyObject().(client.Object)
-				handler.OnDelete(cobj)
+				handler.OnDelete(obj)
 			}
 		},
 	})
@@ -157,34 +152,30 @@ func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler
 func (i *scopedInformer) AddEventHandlerWithResyncPeriod(handler toolscache.ResourceEventHandler, resyncPeriod time.Duration) (toolscache.ResourceEventHandlerRegistration, error) {
 	return i.Informer.AddEventHandlerWithResyncPeriod(toolscache.ResourceEventHandlerDetailedFuncs{
 		AddFunc: func(obj interface{}, isInInitialList bool) {
-			cobj := obj.(client.Object)
-			if logicalcluster.From(cobj) == i.clusterName {
-				cobj := cobj.DeepCopyObject().(client.Object)
-				handler.OnAdd(cobj, isInInitialList)
+			if cobj := obj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
+				handler.OnAdd(obj, isInInitialList)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			obj := newObj.(client.Object)
-			if logicalcluster.From(obj) == i.clusterName {
-				obj := obj.DeepCopyObject().(client.Object)
-				old := oldObj.(client.Object).DeepCopyObject().(client.Object)
-				handler.OnUpdate(old, obj)
+			if obj := newObj.(client.Object); logicalcluster.From(obj) == i.clusterName {
+				handler.OnUpdate(oldObj, newObj)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
+			var cobj client.Object
 			if tombStone, ok := obj.(toolscache.DeletedFinalStateUnknown); ok {
-				obj = tombStone.Obj
+				cobj = tombStone.Obj.(client.Object)
+			} else {
+				cobj = obj.(client.Object)
 			}
-			cobj := obj.(client.Object)
 			if logicalcluster.From(cobj) == i.clusterName {
-				cobj := cobj.DeepCopyObject().(client.Object)
-				handler.OnDelete(cobj)
+				handler.OnDelete(obj)
 			}
 		},
 	}, resyncPeriod)
 }
 
 // AddIndexers adds indexers to the informer.
-func (i *scopedInformer) AddIndexers(indexers toolscache.Indexers) error {
-	return errors.New("indexes cannot be added to scoped informers")
+func (i *scopedInformer) AddIndexers(_ toolscache.Indexers) error {
+	return errors.New("AddIndexers is not supported on scoped informers")
 }
