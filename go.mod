@@ -1,4 +1,4 @@
-module github.com/kcp-dev/multicluster-runtime-provider
+module github.com/kcp-dev/multicluster-provider
 
 go 1.23.5
 

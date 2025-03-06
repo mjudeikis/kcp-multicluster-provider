@@ -42,7 +42,7 @@ import (
 	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
 	mcreconcile "github.com/multicluster-runtime/multicluster-runtime/pkg/reconcile"
 
-	"github.com/kcp-dev/multicluster-runtime-provider/virtualworkspace"
+	"github.com/kcp-dev/multicluster-provider/virtualworkspace"
 )
 
 func init() {
