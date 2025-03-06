@@ -1,0 +1,9 @@
+/_build/
+/_tools/
+/vendor/
+/.kcp.e2e/
+/.e2e/
+.cover
+*.kubeconfig
+*.pem
+*.key
