@@ -2,6 +2,18 @@
 
 This repository contains an **experimental** provider implementation for [multicluster-runtime](https://github.com/multicluster-runtime/multicluster-runtime), a new [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime) "addon" that allows writing uniform multi-cluster-aware Kubernetes controllers.
 
+## Providers
+
+This repository is planned to contain multiple [`Provider`](https://github.com/multicluster-runtime/multicluster-runtime/blob/223b19b990050e373880d57211c90ce86c53fd80/pkg/multicluster/multicluster.go#L52) implementations depending on how your controllers are supposed to interact with kcp.
+
+Currently available are:
+
+- [virtualworkspace](./virtualworkspace/): for interacting with virtual workspaces like the `APIExport` one.
+
+## Examples
+
+See [examples/apiexport](./examples/apiexport) for sample code.
+
 ## Contributing
 
 Thanks for taking the time to start contributing!
@@ -14,7 +26,6 @@ Thanks for taking the time to start contributing!
 ### Pull requests
 
 * We welcome pull requests. Feel free to dig through the [issues][1] and jump in.
-
 
 ## License
 

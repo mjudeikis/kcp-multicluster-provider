@@ -26,6 +26,7 @@ import (
 	corev1alpha1 "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	tenancyv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
 	"github.com/spf13/pflag"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -97,8 +98,8 @@ func main() {
 	}
 
 	if err := mcbuilder.ControllerManagedBy(mgr).
-		Named("kcp-workspace-controller").
-		For(&tenancyv1alpha1.Workspace{}).
+		Named("kcp-configmap-controller").
+		For(&corev1.ConfigMap{}).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
 				log := log.FromContext(ctx).WithValues("cluster", req.ClusterName)
@@ -109,17 +110,17 @@ func main() {
 				}
 				client := cl.GetClient()
 
-				// Retrieve the Workspace from the cluster.
-				w := &tenancyv1alpha1.Workspace{}
-				if err := client.Get(ctx, req.NamespacedName, w); err != nil {
+				// Retrieve the ConfigMap from the cluster.
+				s := &corev1.ConfigMap{}
+				if err := client.Get(ctx, req.NamespacedName, s); err != nil {
 					if apierrors.IsNotFound(err) {
-						// Workspace was deleted.
+						// ConfigMap was deleted.
 						return reconcile.Result{}, nil
 					}
-					return reconcile.Result{}, fmt.Errorf("failed to get workspace: %w", err)
+					return reconcile.Result{}, fmt.Errorf("failed to get configmap: %w", err)
 				}
 
-				log.Info("Reconciling workspaces", "name", w.Name, "uuid", w.UID)
+				log.Info("Reconciling configmap", "name", s.Name, "uuid", s.UID)
 
 				return reconcile.Result{}, nil
 			},
