@@ -97,7 +97,7 @@ func main() {
 	}
 
 	if err := mcbuilder.ControllerManagedBy(mgr).
-		Named("kcp-secret-controller").
+		Named("kcp-workspace-controller").
 		For(&tenancyv1alpha1.Workspace{}).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
