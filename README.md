@@ -20,12 +20,12 @@ Thanks for taking the time to start contributing!
 
 ### Before you start
 
-* Please familiarize yourself with the [Code of Conduct][4] before contributing.
-* See [CONTRIBUTING.md][2] for instructions on the developer certificate of origin that we require.
+* Please familiarize yourself with the [Code of Conduct](./CODE_OF_CONDUCT.md) before contributing.
+* See [CONTRIBUTING.md](./CONTRIBUTING.md) for instructions on the developer certificate of origin that we require.
 
 ### Pull requests
 
-* We welcome pull requests. Feel free to dig through the [issues][1] and jump in.
+* We welcome pull requests. Feel free to dig through existing [issues](https://github.com/kcp-dev/multicluster-provider/issues) and jump in.
 
 ## License
 
