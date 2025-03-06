@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// This file has been forked from https://github.com/kubernetes-sigs/controller-runtime/blob/78b3ce63cf927debb122dd641290a89d20d776e3/pkg/cache/internal/cache_reader.go.
+// It's been modified to allow scoping a CacheReader to a specific logical cluster.
+
 package virtualworkspace
 
 import (
@@ -23,6 +26,7 @@ import (
 
 	kcpcache "github.com/kcp-dev/apimachinery/v2/pkg/cache"
 	"github.com/kcp-dev/logicalcluster/v3"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
@@ -31,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/tools/cache"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

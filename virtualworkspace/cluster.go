@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/kcp-dev/logicalcluster/v3"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -120,7 +121,7 @@ func (c *scopedCluster) GetEventRecorderFor(name string) record.EventRecorder {
 
 // GetAPIReader returns a reader against the cluster.
 func (c *scopedCluster) GetAPIReader() client.Reader {
-	return c.GetAPIReader()
+	return c.cache
 }
 
 // Start starts the cluster.

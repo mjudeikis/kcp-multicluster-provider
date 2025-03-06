@@ -22,15 +22,22 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/spf13/pflag"
+
+	"github.com/kcp-dev/multicluster-provider/virtualworkspace"
+
+	mcbuilder "github.com/multicluster-runtime/multicluster-runtime/pkg/builder"
+	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
+	mcreconcile "github.com/multicluster-runtime/multicluster-runtime/pkg/reconcile"
+
 	apisv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	corev1alpha1 "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	tenancyv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
-	"github.com/spf13/pflag"
+
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -38,12 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	mcbuilder "github.com/multicluster-runtime/multicluster-runtime/pkg/builder"
-	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
-	mcreconcile "github.com/multicluster-runtime/multicluster-runtime/pkg/reconcile"
-
-	"github.com/kcp-dev/multicluster-provider/virtualworkspace"
 )
 
 func init() {

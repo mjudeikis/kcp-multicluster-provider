@@ -20,21 +20,15 @@ import (
 	"fmt"
 
 	"github.com/kcp-dev/logicalcluster/v3"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 )
 
-const (
-	// ClusterIndexName is the name of the index that allows you to filter by cluster.
-	ClusterIndexName = "cluster"
-	// ClusterAndNamespaceIndexName is the name of index that allows you to filter by cluster and namespace.
-	ClusterAndNamespaceIndexName = "cluster-and-namespace"
-)
-
 // ClusterIndexFunc indexes by cluster name.
-func ClusterIndexFunc(obj interface{}) ([]string, error) {
+func ClusterIndexFunc(obj any) ([]string, error) {
 	meta, err := meta.Accessor(obj)
 	if err != nil {
-		return []string{}, fmt.Errorf("object has no meta: %v", err)
+		return []string{}, fmt.Errorf("object has no meta: %w", err)
 	}
 	return []string{ClusterIndexKey(logicalcluster.From(meta))}, nil
 }
@@ -45,10 +39,10 @@ func ClusterIndexKey(clusterName logicalcluster.Name) string {
 }
 
 // ClusterAndNamespaceIndexFunc indexes by cluster and namespace name.
-func ClusterAndNamespaceIndexFunc(obj interface{}) ([]string, error) {
+func ClusterAndNamespaceIndexFunc(obj any) ([]string, error) {
 	meta, err := meta.Accessor(obj)
 	if err != nil {
-		return []string{}, fmt.Errorf("object has no meta: %v", err)
+		return []string{}, fmt.Errorf("object has no meta: %w", err)
 	}
 	return []string{ClusterAndNamespaceIndexKey(logicalcluster.From(meta), meta.GetNamespace())}, nil
 }

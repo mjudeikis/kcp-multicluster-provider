@@ -23,10 +23,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	kcpcache "github.com/kcp-dev/apimachinery/v2/pkg/cache"
 	"github.com/kcp-dev/logicalcluster/v3"
+	"golang.org/x/sync/errgroup"
+
 	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
 	"github.com/multicluster-runtime/multicluster-runtime/pkg/multicluster"
-	"golang.org/x/sync/errgroup"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -110,8 +113,8 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to get shared informer: %w", err)
 	}
-	inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+	if _, err := inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
 			cobj, ok := obj.(client.Object)
 			if !ok {
 				klog.Errorf("unexpected object type %T", obj)
@@ -159,7 +162,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 				p.lock.Unlock()
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			cobj, ok := obj.(client.Object)
 			if !ok {
 				tombstone, ok := obj.(toolscache.DeletedFinalStateUnknown)
@@ -177,7 +180,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			clusterName := logicalcluster.From(cobj)
 
 			// check if there is no object left in the index.
-			keys, err := shInf.GetIndexer().IndexKeys(ClusterIndexName, clusterName.String())
+			keys, err := shInf.GetIndexer().IndexKeys(kcpcache.ClusterIndexName, clusterName.String())
 			if err != nil {
 				p.log.Error(err, "failed to get index keys", "cluster", clusterName)
 				return
@@ -194,7 +197,9 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 				p.lock.Unlock()
 			}
 		},
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to add EventHandler: %w", err)
+	}
 
 	g.Go(func() error { return p.cache.Start(ctx) })
 

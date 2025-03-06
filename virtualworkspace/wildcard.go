@@ -23,8 +23,10 @@ import (
 	"sync"
 	"time"
 
+	kcpcache "github.com/kcp-dev/apimachinery/v2/pkg/cache"
 	kcpinformers "github.com/kcp-dev/apimachinery/v2/third_party/informers"
 	"github.com/kcp-dev/logicalcluster/v3"
+
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -88,8 +90,8 @@ func NewWildcardCache(config *rest.Config, opts cache.Options) (WildcardCache, e
 
 		inf := kcpinformers.NewSharedIndexInformer(watcher, obj, duration, indexers)
 		if err := inf.AddIndexers(k8scache.Indexers{
-			ClusterIndexName:             ClusterIndexFunc,
-			ClusterAndNamespaceIndexName: ClusterAndNamespaceIndexFunc,
+			kcpcache.ClusterIndexName:             ClusterIndexFunc,
+			kcpcache.ClusterAndNamespaceIndexName: ClusterAndNamespaceIndexFunc,
 		}); err != nil {
 			utilruntime.HandleError(fmt.Errorf("unable to add cluster name indexers: %w", err))
 		}

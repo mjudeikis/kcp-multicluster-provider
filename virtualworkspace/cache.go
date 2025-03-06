@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/kcp-dev/logicalcluster/v3"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	toolscache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
