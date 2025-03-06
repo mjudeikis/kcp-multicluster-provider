@@ -55,21 +55,28 @@ type Provider struct {
 	cancelFns map[logicalcluster.Name]context.CancelFunc
 }
 
+// Options are the options for creating a new kcp virtual workspace provider.
 type Options struct {
+	// Scheme is the scheme to use for the provider. It defaults to the
+	// client-go scheme.
 	Scheme *runtime.Scheme
-	Cache  WildcardCache
+
+	// WildcardCache is the wildcard cache to use for the provider. If this is
+	// nil, a new wildcard cache will be created for the given rest.Config.
+	WildcardCache WildcardCache
 }
 
 // New creates a new kcp virtual workspace provider. The provided rest.Config
 // must point to a virtual workspace apiserver base path, i.e. up to but without
 // the "/clusters/*" suffix.
 func New(cfg *rest.Config, obj client.Object, options Options) (*Provider, error) {
+	// Do the defaulting controller-runtime would do for those fields we need.
 	if options.Scheme == nil {
 		options.Scheme = scheme.Scheme
 	}
-	if options.Cache == nil {
+	if options.WildcardCache == nil {
 		var err error
-		options.Cache, err = NewWildcardCache(cfg, cache.Options{
+		options.WildcardCache, err = NewWildcardCache(cfg, cache.Options{
 			Scheme: options.Scheme,
 		})
 		if err != nil {
@@ -80,7 +87,7 @@ func New(cfg *rest.Config, obj client.Object, options Options) (*Provider, error
 	return &Provider{
 		config: cfg,
 		scheme: options.Scheme,
-		cache:  options.Cache,
+		cache:  options.WildcardCache,
 		object: obj,
 
 		log: log.Log.WithName("kcp-virtualworkspace-cluster-provider"),
@@ -202,13 +209,16 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 
 // Get returns a cluster by name.
 func (p *Provider) Get(_ context.Context, name string) (cluster.Cluster, error) {
-	clusterName := logicalcluster.Name(name)
-
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	if cl, ok := p.clusters[clusterName]; ok {
+	if cl, ok := p.clusters[logicalcluster.Name(name)]; ok {
 		return cl, nil
 	}
 
 	return nil, fmt.Errorf("cluster %q not found", name)
+}
+
+// GetWildcard returns the wildcard cache.
+func (p *Provider) GetWildcard() cache.Cache {
+	return p.cache
 }

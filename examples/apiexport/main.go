@@ -98,7 +98,7 @@ func main() {
 
 	if err := mcbuilder.ControllerManagedBy(mgr).
 		Named("kcp-secret-controller").
-		Watches(&tenancyv1alpha1.Workspace{}, virtualworkspace.EventHandlerFunc).
+		For(&tenancyv1alpha1.Workspace{}).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
 				log := log.FromContext(ctx).WithValues("cluster", req.ClusterName)
