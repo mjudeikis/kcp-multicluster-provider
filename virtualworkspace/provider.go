@@ -122,7 +122,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			}
 			clusterName := logicalcluster.From(cobj)
 
-			// fast path.
+			// fast path: cluster exists already, there is nothing to do.
 			p.lock.RLock()
 			if _, ok := p.clusters[clusterName]; ok {
 				p.lock.RUnlock()
@@ -130,7 +130,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			}
 			p.lock.RUnlock()
 
-			// slow path.
+			// slow path: take write lock to add a new cluster (unless it appeared in the meantime).
 			p.lock.Lock()
 			if _, ok := p.clusters[clusterName]; ok {
 				p.lock.Unlock()

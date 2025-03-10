@@ -19,8 +19,9 @@ package virtualworkspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/kcp-dev/logicalcluster/v3"
 
@@ -36,12 +37,16 @@ import (
 
 func newScopedCluster(cfg *rest.Config, clusterName logicalcluster.Name, wildcardCA WildcardCache, scheme *runtime.Scheme) (*scopedCluster, error) {
 	cfg = rest.CopyConfig(cfg)
-	cfg.Host = strings.TrimSuffix(cfg.Host, "/") + clusterName.Path().RequestPath()
+	host, err := url.JoinPath(cfg.Host, clusterName.Path().RequestPath())
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct scoped cluster URL: %w", err)
+	}
+	cfg.Host = host
 
+	// construct a scoped cache that uses the wildcard cache as base.
 	ca := &scopedCache{
 		base:        wildcardCA,
 		clusterName: clusterName,
-		infGetter:   wildcardCA.getSharedInformer,
 	}
 
 	cli, err := client.New(cfg, client.Options{Cache: &client.CacheOptions{Reader: ca}})
