@@ -36,7 +36,6 @@ var _ cache.Cache = &scopedCache{}
 type scopedCache struct {
 	base        WildcardCache
 	clusterName logicalcluster.Name
-	infGetter   sharedInformerGetter
 }
 
 func (c *scopedCache) Start(ctx context.Context) error {
@@ -53,7 +52,7 @@ func (c *scopedCache) IndexField(ctx context.Context, obj client.Object, field s
 
 // Get returns a single object from the cache.
 func (c *scopedCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-	inf, gvk, scope, found, err := c.infGetter(obj)
+	inf, gvk, scope, found, err := c.base.getSharedInformer(obj)
 	if err != nil {
 		return fmt.Errorf("failed to get informer for %T %s: %w", obj, obj.GetObjectKind().GroupVersionKind(), err)
 	}
@@ -74,7 +73,7 @@ func (c *scopedCache) Get(ctx context.Context, key client.ObjectKey, obj client.
 
 // List returns a list of objects from the cache.
 func (c *scopedCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	inf, gvk, scope, found, err := c.infGetter(list)
+	inf, gvk, scope, found, err := c.base.getSharedInformer(list)
 	if err != nil {
 		return fmt.Errorf("failed to get informer for %T %s: %w", list, list.GetObjectKind().GroupVersionKind(), err)
 	}
@@ -125,17 +124,17 @@ type scopedInformer struct {
 // AddEventHandler adds an event handler to the informer.
 func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler) (toolscache.ResourceEventHandlerRegistration, error) {
 	return i.Informer.AddEventHandler(toolscache.ResourceEventHandlerDetailedFuncs{
-		AddFunc: func(obj interface{}, isInInitialList bool) {
+		AddFunc: func(obj any, isInInitialList bool) {
 			if cobj := obj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
 				handler.OnAdd(obj, isInInitialList)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			if cobj := newObj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
 				handler.OnUpdate(oldObj, newObj)
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			var cobj client.Object
 			if tombStone, ok := obj.(toolscache.DeletedFinalStateUnknown); ok {
 				cobj = tombStone.Obj.(client.Object)
@@ -152,17 +151,17 @@ func (i *scopedInformer) AddEventHandler(handler toolscache.ResourceEventHandler
 // AddEventHandlerWithResyncPeriod adds an event handler to the informer with a resync period.
 func (i *scopedInformer) AddEventHandlerWithResyncPeriod(handler toolscache.ResourceEventHandler, resyncPeriod time.Duration) (toolscache.ResourceEventHandlerRegistration, error) {
 	return i.Informer.AddEventHandlerWithResyncPeriod(toolscache.ResourceEventHandlerDetailedFuncs{
-		AddFunc: func(obj interface{}, isInInitialList bool) {
+		AddFunc: func(obj any, isInInitialList bool) {
 			if cobj := obj.(client.Object); logicalcluster.From(cobj) == i.clusterName {
 				handler.OnAdd(obj, isInInitialList)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			if obj := newObj.(client.Object); logicalcluster.From(obj) == i.clusterName {
 				handler.OnUpdate(oldObj, newObj)
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			var cobj client.Object
 			if tombStone, ok := obj.(toolscache.DeletedFinalStateUnknown); ok {
 				cobj = tombStone.Obj.(client.Object)
