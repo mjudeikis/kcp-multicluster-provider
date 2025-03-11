@@ -116,8 +116,6 @@ func NewWildcardCache(config *rest.Config, opts cache.Options) (WildcardCache, e
 	return ret, nil
 }
 
-type sharedInformerGetter func(obj runtime.Object) (k8scache.SharedIndexInformer, schema.GroupVersionKind, apimeta.RESTScopeName, bool, error)
-
 type wildcardCache struct {
 	cache.Cache
 	scheme  *runtime.Scheme
