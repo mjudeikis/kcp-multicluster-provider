@@ -123,6 +123,16 @@ func main() {
 
 				log.Info("Reconciling configmap", "name", s.Name, "uuid", s.UID)
 
+				// This fails as we dont have informers for the cluster.
+				secretList := &corev1.SecretList{}
+				if err := client.List(ctx, secretList); err != nil {
+					return reconcile.Result{}, fmt.Errorf("failed to list secrets: %w", err)
+				}
+
+				for _, secret := range secretList.Items {
+					log.Info("Secret", "name", secret.Name, "uuid", secret.UID)
+				}
+
 				return reconcile.Result{}, nil
 			},
 		)); err != nil {
