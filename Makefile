@@ -107,3 +107,7 @@ imports: $(GIMPS)
 verify:
 	./hack/verify-boilerplate.sh
 	./hack/verify-licenses.sh
+
+.PHONY: test
+test:
+	./hack/run-tests.sh
