@@ -211,7 +211,7 @@ func main() {
 
 	var err error
 	provider, err := virtualworkspace.New(cfg, &apisv1alpha1.APIBinding{}, virtualworkspace.Options{
-		//Scheme: scheme,
+		Scheme: clientgoscheme.Scheme,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to construct cluster provider")
@@ -229,7 +229,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	providerClusterDynamicClient, err := client.New(config, client.Options{Scheme: clientgoscheme.Scheme})
+	providerClusterDynamicClient, err := client.New(config, client.Options{
+		Scheme: clientgoscheme.Scheme,
+	})
 	if err != nil {
 		setupLog.Error(err, "unable to create dynamic client")
 		os.Exit(1)

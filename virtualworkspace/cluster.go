@@ -49,7 +49,13 @@ func newScopedCluster(cfg *rest.Config, clusterName logicalcluster.Name, wildcar
 		clusterName: clusterName,
 	}
 
-	cli, err := client.New(cfg, client.Options{Cache: &client.CacheOptions{Reader: ca}})
+	// TODO(mjudeikis): re-enable cache once https://github.com/kcp-dev/multicluster-provider/issues/8 is fixed.
+	cli, err := client.New(cfg, client.Options{
+		Scheme: scheme,
+		Cache:  &client.CacheOptions{
+			//Reader: ca,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
