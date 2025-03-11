@@ -227,3 +227,7 @@ func (p *Provider) Get(_ context.Context, name string) (cluster.Cluster, error) 
 func (p *Provider) GetWildcard() cache.Cache {
 	return p.cache
 }
+
+func (p *Provider) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
+	return p.cache.IndexField(ctx, obj, field, extractValue)
+}

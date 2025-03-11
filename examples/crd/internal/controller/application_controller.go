@@ -19,11 +19,13 @@ package controller
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/davecgh/go-spew/spew"
 	apisv1alpha1 "github.com/kcp-dev/multicluster-provider/examples/crd/api/v1alpha1"
 )
 
@@ -31,6 +33,8 @@ import (
 type ApplicationReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	ProviderClient client.Client
 }
 
 // +kubebuilder:rbac:groups=apis.contrib.kcp.io,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -49,7 +53,23 @@ type ApplicationReconciler struct {
 func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	obj := &apisv1alpha1.Application{}
+	if err := r.Client.Get(ctx, req.NamespacedName, obj); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var secret corev1.Secret
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Namespace: req.Namespace,
+		Name:      obj.Spec.DatabaseSecretRef.Name,
+	}, &secret)
+	if err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
+	spew.Dump(secret)
 
 	return ctrl.Result{}, nil
 }

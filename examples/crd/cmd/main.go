@@ -26,8 +26,10 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	apisv1alpha1 "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/kcp-dev/multicluster-provider/virtualworkspace"
@@ -35,11 +37,11 @@ import (
 	mcmanager "github.com/multicluster-runtime/multicluster-runtime/pkg/manager"
 	mcreconcile "github.com/multicluster-runtime/multicluster-runtime/pkg/reconcile"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -55,15 +57,15 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	//scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(applicationapisv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clientgoscheme.AddToScheme(clientgoscheme.Scheme))
+	utilruntime.Must(applicationapisv1alpha1.AddToScheme(clientgoscheme.Scheme))
 	// MULTICLUSTER: This is where it differ from the default scaffold.
-	utilruntime.Must(apisv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(apisv1alpha1.AddToScheme(clientgoscheme.Scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -77,6 +79,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var server string
+	var providerKubeConfig string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -97,6 +100,8 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	// MULTICLUSTER: This is where it differ from the default scaffold.
 	flag.StringVar(&server, "server", "", "Override for kubeconfig server URL")
+
+	flag.StringVar(&providerKubeConfig, "provider-kubeconfig", "", "The path to the kubeconfig file for the provider cluster.")
 
 	opts := zap.Options{
 		Development: true,
@@ -206,15 +211,32 @@ func main() {
 
 	var err error
 	provider, err := virtualworkspace.New(cfg, &apisv1alpha1.APIBinding{}, virtualworkspace.Options{
-		Scheme: scheme,
+		//Scheme: scheme,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to construct cluster provider")
 		os.Exit(1)
 	}
 
+	providerKubeConfig = filepath.Clean(providerKubeConfig)
+	if _, err := os.Stat(providerKubeConfig); err != nil {
+		setupLog.Error(err, "unable to find provider kubeconfig")
+		os.Exit(1)
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", providerKubeConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to build provider kubeconfig")
+		os.Exit(1)
+	}
+
+	providerClusterDynamicClient, err := client.New(config, client.Options{Scheme: clientgoscheme.Scheme})
+	if err != nil {
+		setupLog.Error(err, "unable to create dynamic client")
+		os.Exit(1)
+	}
+
 	mgr, err := mcmanager.New(cfg, provider, ctrl.Options{
-		Scheme:                 scheme,
+		Scheme:                 clientgoscheme.Scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
@@ -252,8 +274,9 @@ func main() {
 				client := cl.GetClient()
 
 				reconciler := &controller.ApplicationReconciler{
-					Client: client,
-					Scheme: cl.GetScheme(),
+					Client:         client,
+					Scheme:         cl.GetScheme(),
+					ProviderClient: providerClusterDynamicClient,
 				}
 				return reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: req.NamespacedName})
 			},

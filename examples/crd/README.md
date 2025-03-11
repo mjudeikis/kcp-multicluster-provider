@@ -14,7 +14,7 @@ After than content of `cmd/main.go` was updated with multicluster extension.
 It can be tested by applying the necessary manifests from the respective folder while connected to the `root` workspace of a kcp instance:
 
 ```sh
-$ kubectl ws create provider --enter
+$ kubectl ws create providers --enter
 $ kubectl apply -f ./config/kcp/apiresourceschema-applications.apis.contrib.kcp.io.yaml
 $ kubectl apply -f ./config/kcp/apiexport-apis.contrib.kcp.io.yaml
 

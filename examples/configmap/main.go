@@ -51,6 +51,7 @@ func init() {
 	runtime.Must(corev1alpha1.AddToScheme(scheme.Scheme))
 	runtime.Must(tenancyv1alpha1.AddToScheme(scheme.Scheme))
 	runtime.Must(apisv1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(corev1.AddToScheme(scheme.Scheme))
 }
 
 func main() {
@@ -85,7 +86,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+	provider.
+		cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			fmt.Println(r.URL)
 			return rt.RoundTrip(r)
