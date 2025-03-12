@@ -2,7 +2,7 @@ apiVersion: apis.kcp.io/v1alpha1
 kind: APIResourceSchema
 metadata:
   creationTimestamp: null
-  name: v250311-815acc2.applications.apis.contrib.kcp.io
+  name: v250312-8223e7b.applications.apis.contrib.kcp.io
 spec:
   group: apis.contrib.kcp.io
   names:
@@ -36,6 +36,11 @@ spec:
         spec:
           description: ApplicationSpec defines the desired state of Application.
           properties:
+            databaseRef:
+              description: |-
+                INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "make" to regenerate code after modifying this file
+              type: string
             databaseSecretRef:
               description: |-
                 SecretReference represents a Secret Reference. It has enough information to retrieve secret
@@ -55,6 +60,8 @@ spec:
         status:
           description: ApplicationStatus defines the observed state of Application.
           properties:
+            connectionString:
+              type: string
             status:
               type: string
           type: object

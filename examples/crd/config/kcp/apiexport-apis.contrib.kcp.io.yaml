@@ -5,9 +5,8 @@ metadata:
   name: apis.contrib.kcp.io
 spec:
   latestResourceSchemas:
-  - v250311-815acc2.applications.apis.contrib.kcp.io
+  - v250312-8223e7b.applications.apis.contrib.kcp.io
   permissionClaims:
   - all: true
-    group: ""
     resource: secrets
 status: {}

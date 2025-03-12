@@ -28,13 +28,15 @@ import (
 type ApplicationSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	DatabaseRef string `json:"databaseRef,omitempty"`
 
 	DatabaseSecretRef corev1.SecretReference `json:"databaseSecretRef,omitempty"`
 }
 
 // ApplicationStatus defines the observed state of Application.
 type ApplicationStatus struct {
-	Status string `json:"status,omitempty"`
+	Status           string `json:"status,omitempty"`
+	ConnectionString string `json:"connectionString,omitempty"`
 }
 
 // +kubebuilder:object:root=true

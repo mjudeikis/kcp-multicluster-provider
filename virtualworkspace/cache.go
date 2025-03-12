@@ -57,7 +57,7 @@ func (c *scopedCache) Get(ctx context.Context, key client.ObjectKey, obj client.
 		return fmt.Errorf("failed to get informer for %T %s: %w", obj, obj.GetObjectKind().GroupVersionKind(), err)
 	}
 	if !found {
-		return fmt.Errorf("no informer found for %T %s", obj, obj.GetObjectKind().GroupVersionKind())
+		//return fmt.Errorf("no informer found for %T %s", obj, obj.GetObjectKind().GroupVersionKind())
 	}
 
 	cr := cacheReader{
@@ -78,7 +78,7 @@ func (c *scopedCache) List(ctx context.Context, list client.ObjectList, opts ...
 		return fmt.Errorf("failed to get informer for %T %s: %w", list, list.GetObjectKind().GroupVersionKind(), err)
 	}
 	if !found {
-		return fmt.Errorf("no informer found for %T %s", list, list.GetObjectKind().GroupVersionKind())
+		//return fmt.Errorf("no informer found for %T %s", list, list.GetObjectKind().GroupVersionKind())
 	}
 
 	cr := cacheReader{

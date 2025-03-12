@@ -96,7 +96,7 @@ build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run:  ## Run a controller from your host.
 	go run ./cmd/main.go --server=$$(kubectl get apiexport apis.contrib.kcp.io -o jsonpath="{.status.virtualWorkspaces[0].url}") \
 	--provider-kubeconfig provider.kubeconfig
 

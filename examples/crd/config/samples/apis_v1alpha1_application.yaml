@@ -6,4 +6,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: application-sample
 spec:
-  # TODO(user): Add fields here
+  databaseRef: db-one
+  databaseSecretRef:
+    name: kcp-superuser

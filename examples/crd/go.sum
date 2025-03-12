@@ -81,8 +81,6 @@ github.com/kcp-dev/kcp/sdk v0.26.1 h1:kzowAqlO6gfSmNFOXtcskg0tOhd8etG72XqvW06BUb
 github.com/kcp-dev/kcp/sdk v0.26.1/go.mod h1:XjabYVlKkpuRr1qATymS0gMTEjC6McuuwdoVGSar2fE=
 github.com/kcp-dev/logicalcluster/v3 v3.0.5 h1:JbYakokb+5Uinz09oTXomSUJVQsqfxEvU4RyHUYxHOU=
 github.com/kcp-dev/logicalcluster/v3 v3.0.5/go.mod h1:EWBUBxdr49fUB1cLMO4nOdBWmYifLbP1LfoL20KkXYY=
-github.com/kcp-dev/multicluster-provider v0.0.0-20250310140656-89fbeb34dc44 h1:oqLtgqKL7449SHVLKO98l3bhn4TfZU//3fUpFCFoYZo=
-github.com/kcp-dev/multicluster-provider v0.0.0-20250310140656-89fbeb34dc44/go.mod h1:ajho2sxE51O9Ad4jN+PR/2UusRDcLdj19dz7Gc1SmRo=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
@@ -99,8 +97,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.3 h1:GLVW6WCrHbuyrSOcMpXUd/svnW32YLRMJPwRwAiR8zI=
-github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.3/go.mod h1:6ZuT8VoTSr8nYyToyhnhAepyZoHAaCQzzabzbSFwAKc=
+github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.5 h1:aoDDYIbqFXbRfWVbQEl5l5KktEVWntuwD2gpPMEIr4A=
+github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.5/go.mod h1:6ZuT8VoTSr8nYyToyhnhAepyZoHAaCQzzabzbSFwAKc=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/onsi/ginkgo/v2 v2.22.0 h1:Yed107/8DjTr0lKCNt7Dn8yQ6ybuDRQoMGrNFKzMfHg=
