@@ -1,4 +1,5 @@
 /_build/
+/dist/
 /_tools/
 /vendor/
 /.kcp.e2e/
