@@ -2,14 +2,10 @@ module github.com/kcp-dev/multicluster-provider/examples/crd
 
 go 1.23.5
 
-toolchain go1.23.7
-
-godebug default=go1.23
-
 require (
 	github.com/kcp-dev/kcp/sdk v0.26.1
 	github.com/kcp-dev/multicluster-provider v0.0.0-20250310140656-89fbeb34dc44
-	github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.5.0.20250314182220-6648ea69ab14
+	github.com/multicluster-runtime/multicluster-runtime v0.20.0-alpha.5
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.36.1
 	k8s.io/api v0.32.1
@@ -105,3 +101,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/multicluster-runtime/multicluster-runtime => github.com/multicluster-runtime/multicluster-runtime v0.0.0-20250314182220-6648ea69ab14
+replace github.com/kcp-dev/multicluster-provider => github.com/kcp-dev/multicluster-provider v0.0.0-20250313155532-e66c5ab2532c
