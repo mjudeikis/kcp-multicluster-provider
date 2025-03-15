@@ -1,0 +1,59 @@
+name: goreleaser
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .goreleaser.yaml
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+    
+      - uses: actions/setup-go@v5
+        with:
+          go-version: v1.22.10
+    
+      - name: Delete non-semver tags
+        run: 'git tag -d $(git tag -l | grep -v "^v")'
+      
+      - name: Run GoReleaser on tag
+        if: github.event_name != 'pull_request'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --timeout 60m
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Run GoReleaser on pull request
+        if: github.event_name == 'pull_request'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --timeout 60m --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: binaries
+          path: dist/*.tar.gz

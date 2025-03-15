@@ -93,7 +93,7 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -o bin/mcp-example-crd cmd/main.go
 
 .PHONY: run
 run:  ## Run a controller from your host.
@@ -250,4 +250,4 @@ kcp-tools: $(KCP_APIGEN_GEN)
 .PHONY: kcp-tools
 
 kcp-generate:
-	$(TOOLS_DIR)/apigen --input-dir ./config/crd/bases --output-dir ./config/kcp    
+	$(TOOLS_DIR)/apigen --input-dir ./config/crd/bases --output-dir ./config/kcp
