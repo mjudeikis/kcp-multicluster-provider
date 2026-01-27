@@ -93,6 +93,9 @@ func (l *loggingReadCloser) Read(p []byte) (n int, err error) {
 	n, err = l.rc.Read(p)
 	if n > 0 {
 		data := string(p[:n])
+		if len(data) > 200 {
+			data = data[:200] + "..." // truncate long lines
+		}
 		fmt.Printf("[WATCH] %s\n  DATA: %s\n", l.url, data)
 	}
 	return n, err
@@ -124,9 +127,9 @@ func main() {
 	pflag.Parse()
 
 	cfg := ctrl.GetConfigOrDie()
-	//cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
-	//	return &loggingRoundTripper{rt: rt}
-	//}
+	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+		return &loggingRoundTripper{rt: rt}
+	}
 
 	// Setup a Manager, note that this not yet engages clusters, only makes them available.
 	entryLog.Info("Setting up manager")
