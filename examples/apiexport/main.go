@@ -18,7 +18,10 @@ package main
 
 import (
 	"context"
+	goflag "flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 
 	"github.com/spf13/pflag"
@@ -39,6 +42,7 @@ import (
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 
 	apisv1alpha1 "github.com/kcp-dev/sdk/apis/apis/v1alpha1"
+	apisv1alpha2 "github.com/kcp-dev/sdk/apis/apis/v1alpha2"
 	corev1alpha1 "github.com/kcp-dev/sdk/apis/core/v1alpha1"
 	tenancyv1alpha1 "github.com/kcp-dev/sdk/apis/tenancy/v1alpha1"
 
@@ -49,9 +53,62 @@ func init() {
 	runtime.Must(corev1alpha1.AddToScheme(scheme.Scheme))
 	runtime.Must(tenancyv1alpha1.AddToScheme(scheme.Scheme))
 	runtime.Must(apisv1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(apisv1alpha2.AddToScheme(scheme.Scheme))
+}
+
+type loggingRoundTripper struct {
+	rt http.RoundTripper
+}
+
+func (l *loggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	isWatch := req.URL.Query().Get("watch") == "true"
+	fmt.Printf("[HTTP] %s %s\n", req.Method, req.URL.String())
+
+	resp, err := l.rt.RoundTrip(req)
+	if err != nil {
+		fmt.Printf("[HTTP] ERROR: %v\n", err)
+		return resp, err
+	}
+
+	fmt.Printf("[HTTP] RESPONSE: %s %d\n", req.URL.Path, resp.StatusCode)
+
+	// For watch requests, wrap the body to log events
+	if isWatch && resp.Body != nil {
+		fmt.Printf("[HTTP] WATCH started: %s\n", req.URL.String())
+		resp.Body = &loggingReadCloser{
+			rc:  resp.Body,
+			url: req.URL.String(),
+		}
+	}
+
+	return resp, err
+}
+
+type loggingReadCloser struct {
+	rc  io.ReadCloser
+	url string
+}
+
+func (l *loggingReadCloser) Read(p []byte) (n int, err error) {
+	n, err = l.rc.Read(p)
+	if n > 0 {
+		data := string(p[:n])
+		fmt.Printf("[WATCH] %s\n  DATA: %s\n", l.url, data)
+	}
+	return n, err
+}
+
+func (l *loggingReadCloser) Close() error {
+	fmt.Printf("[WATCH] CLOSED: %s\n", l.url)
+	return l.rc.Close()
 }
 
 func main() {
+	// Enable verbose debug logging for client-go (shows HTTP requests/responses)
+	// Level 6 shows HTTP requests, Level 8 shows request/response bodies
+	//klog.InitFlags(nil)
+	//_ = goflag.Set("v", "12")
+
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	ctx := signals.SetupSignalHandler()
@@ -63,9 +120,13 @@ func main() {
 	)
 
 	pflag.StringVar(&endpointSlice, "endpointslice", "examples-apiexport-multicluster", "Set the APIExportEndpointSlice name to watch")
+	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 	pflag.Parse()
 
 	cfg := ctrl.GetConfigOrDie()
+	//cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+	//	return &loggingRoundTripper{rt: rt}
+	//}
 
 	// Setup a Manager, note that this not yet engages clusters, only makes them available.
 	entryLog.Info("Setting up manager")
@@ -101,7 +162,6 @@ func main() {
 				s := &corev1.ConfigMap{}
 				if err := client.Get(ctx, req.NamespacedName, s); err != nil {
 					if apierrors.IsNotFound(err) {
-						// ConfigMap was deleted.
 						return reconcile.Result{}, nil
 					}
 					return reconcile.Result{}, fmt.Errorf("failed to get configmap: %w", err)

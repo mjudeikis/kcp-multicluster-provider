@@ -123,10 +123,12 @@ func New(cfg *rest.Config, clusters *Clusters, options Options) (*Provider, erro
 	if options.Scheme == nil {
 		options.Scheme = scheme.Scheme
 	}
+	oneMinute := time.Minute
 	if options.WildcardCache == nil {
 		var err error
 		options.WildcardCache, err = mcpcache.NewWildcardCache(cfg, cache.Options{
-			Scheme: options.Scheme,
+			Scheme:     options.Scheme,
+			SyncPeriod: &oneMinute,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wildcard cache: %w", err)
@@ -189,6 +191,7 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 	if err != nil {
 		return fmt.Errorf("failed to get shared informer: %w", err)
 	}
+
 	if _, err := inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			cobj, ok := obj.(client.Object)
@@ -266,7 +269,9 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 		return fmt.Errorf("failed to add EventHandler: %w", err)
 	}
 
-	g.Go(func() error { return p.cache.Start(ctx) })
+	g.Go(func() error {
+		return p.cache.Start(ctx)
+	})
 	g.Go(func() error {
 		// wait for context stop and try to shut down event broadcasters
 		select {

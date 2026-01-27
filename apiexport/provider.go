@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 
 	apisv1alpha1 "github.com/kcp-dev/sdk/apis/apis/v1alpha1"
+	apisv1alpha2 "github.com/kcp-dev/sdk/apis/apis/v1alpha2"
 
 	mcpcache "github.com/kcp-dev/multicluster-provider/pkg/cache"
 	"github.com/kcp-dev/multicluster-provider/pkg/handlers"
@@ -115,7 +116,7 @@ func New(cfg *rest.Config, endpointSliceName string, options Options) (*Provider
 	}
 
 	if options.ObjectToWatch == nil {
-		options.ObjectToWatch = &apisv1alpha1.APIBinding{}
+		options.ObjectToWatch = &apisv1alpha2.APIBinding{}
 	}
 
 	if options.Log == nil {
