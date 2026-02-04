@@ -26,8 +26,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
+	eventsv1client "k8s.io/client-go/kubernetes/typed/events/v1"
 	"k8s.io/client-go/rest"
 	toolscache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -143,8 +145,8 @@ func New(cfg *rest.Config, clusters *Clusters, options Options) (*Provider, erro
 	}
 
 	if options.makeBroadcaster == nil {
-		options.makeBroadcaster = func() (record.EventBroadcaster, bool) {
-			return record.NewBroadcaster(), true
+		options.makeBroadcaster = func(client *eventsv1client.EventsV1Client) (deprecatedCaster record.EventBroadcaster, caster events.EventBroadcaster, stopWithProvider bool) {
+			return record.NewBroadcaster(), events.NewBroadcaster(&events.EventSinkImpl{Interface: client}), true
 		}
 	}
 	if options.Log == nil {
@@ -182,7 +184,10 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 	g, ctx := errgroup.WithContext(ctx)
 	p.aware = aware
 
-	// Watch logical clusters and engage them as clusters in multicluster-runtime.
+	// Get the informer and shared informer BEFORE starting the cache.
+	// This is critical for WatchList (client-go 1.34+) where initial events are streamed
+	// via the watch connection with sendInitialEvents=true. We must register handlers
+	// before cache.Start() to avoid missing initial events.
 	inf, err := p.cache.GetInformer(ctx, p.object, cache.BlockUntilSynced(false))
 	if err != nil {
 		return fmt.Errorf("failed to get %T informer: %w", p.object, err)
@@ -269,27 +274,27 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 		return fmt.Errorf("failed to add EventHandler: %w", err)
 	}
 
+	// Start the cache AFTER registering event handlers.
+	// This is critical for WatchList (client-go 1.34+) to ensure we don't miss initial events.
 	g.Go(func() error {
 		return p.cache.Start(ctx)
 	})
-	g.Go(func() error {
-		// wait for context stop and try to shut down event broadcasters
-		select {
-		case <-ctx.Done():
-			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-			p.recorderProvider.Stop(shutdownCtx)
-		default:
-		}
-		return nil
-	})
 
+	// Wait for cache to sync with a timeout.
 	syncCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
-	if _, err := p.cache.GetInformer(syncCtx, p.object, cache.BlockUntilSynced(true)); err != nil {
-		return fmt.Errorf("failed to sync %T informer: %w", p.object, err)
+	if !p.cache.WaitForCacheSync(syncCtx) {
+		return fmt.Errorf("failed to wait for cache sync")
 	}
+
+	g.Go(func() error {
+		// wait for context stop and try to shut down event broadcasters
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		p.recorderProvider.Stop(shutdownCtx)
+		return nil
+	})
 
 	return g.Wait()
 }

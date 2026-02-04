@@ -26,12 +26,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	eventsv1client "k8s.io/client-go/kubernetes/typed/events/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 )
 
 func TestEventBroadcasterProvider(t *testing.T) {
-	makeBroadcaster := func() (record.EventBroadcaster, bool) { return record.NewBroadcaster(), true }
+	makeBroadcaster := func(client *eventsv1client.EventsV1Client) (record.EventBroadcaster, events.EventBroadcaster, bool) {
+		return record.NewBroadcaster(), events.NewBroadcaster(&events.EventSinkImpl{Interface: client}), true
+	}
 
 	provider, err := NewProvider(http.DefaultClient, scheme.Scheme, logr.Discard(), makeBroadcaster)
 	require.NoError(t, err)

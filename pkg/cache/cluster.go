@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -173,6 +174,11 @@ func (c *ScopedCluster) GetClient() client.Client {
 // GetEventRecorderFor returns a new EventRecorder for the provided name.
 func (c *ScopedCluster) GetEventRecorderFor(name string) record.EventRecorder {
 	return c.recorderProvider.GetEventRecorderFor(c.config, name, c.clusterName.String())
+}
+
+// GetEventRecorderFor returns a new EventRecorder for the provided name.
+func (c *ScopedCluster) GetEventRecorder(name string) events.EventRecorder {
+	return c.recorderProvider.GetEventRecorder(c.config, name, c.clusterName.String())
 }
 
 // GetAPIReader returns a reader against the cluster.
